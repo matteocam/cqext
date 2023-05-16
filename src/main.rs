@@ -13,6 +13,7 @@ pub mod verifier;
 pub const PROTOCOL_NAME: &[u8] = b"CQ-1.0";
 
 use std::time::{Instant};
+use std::cmp;
 
 use ark_bn254::Bn254;
 use ark_ec::PairingEngine;
@@ -71,7 +72,9 @@ fn prepare<E: PairingEngine, R: RngCore>(
     (table, index, statement, common, pk, vk, witness)
 }
 
-fn measure_cq(msg:&str, table_size:usize, lookup_size:usize) {
+fn measure_cq(msg:String, table_size:usize, lookup_size:usize) {
+    let two: usize = 2;
+
     let n = table_size;
 
     let mut rng = test_rng();
@@ -80,22 +83,36 @@ fn measure_cq(msg:&str, table_size:usize, lookup_size:usize) {
     let subvector_indices: Vec<usize> =
         (0..witness_size).map(|_| rng.gen_range(0..n - 1)).collect();
 
+    let start = Instant::now();
     let (table, index, statement, common, pk, vk, witness) =
         prepare::<Bn254, StdRng>(n, &subvector_indices, &mut rng);
+    let duration = start.elapsed();
+    println!("# Setup took: {:?}", duration);
 
     // measure proving time 
     let start = Instant::now();
     let proof = Prover::<Bn254, FS>::prove(&pk, &index, &table, &witness, &statement).unwrap();
     let duration = start.elapsed();
-    println!("Time elapsed in proving {:?} is: {:?}", msg, duration);
+    println!("# {} proving took: {:?}", msg, duration);
 
     let res = Verifier::<Bn254, FS>::verify(&vk, &common, &statement, &proof);
     assert!(res.is_ok());
 
 }
 
+fn measure_cprange(B:usize, n:usize)
+{
+    let two: usize = 2;
+    measure_cq(format!("CPRange({B},{n})"), B, n);
+}
+
 fn main() {
     let two: usize = 2;
-    measure_cq("x", two.pow(6), two.pow(3));
+    let B = two.pow(16);
+    let d:usize = two.pow(6); // should be roughly 1K
+    let m = two.pow(6); // should be roughly 2K
+    let num_cpranges: usize = 2*d*m;  // should be roughly 4M
+
+    measure_cprange( B, num_cpranges);
     
 }
