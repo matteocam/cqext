@@ -12,6 +12,7 @@ pub mod verifier;
 
 pub const PROTOCOL_NAME: &[u8] = b"CQ-1.0";
 
+use std::time::{Instant};
 
 use ark_bn254::Bn254;
 use ark_ec::PairingEngine;
@@ -70,21 +71,31 @@ fn prepare<E: PairingEngine, R: RngCore>(
     (table, index, statement, common, pk, vk, witness)
 }
 
-
-fn main() {
-    let two: usize = 2;
-    let n = two.pow(6);
+fn measure_cq(msg:&str, table_size:usize, lookup_size:usize) {
+    let n = table_size;
 
     let mut rng = test_rng();
 
-    let witness_size = two.pow(3);
+    let witness_size = lookup_size;
     let subvector_indices: Vec<usize> =
         (0..witness_size).map(|_| rng.gen_range(0..n - 1)).collect();
 
     let (table, index, statement, common, pk, vk, witness) =
         prepare::<Bn254, StdRng>(n, &subvector_indices, &mut rng);
 
+    // measure proving time 
+    let start = Instant::now();
     let proof = Prover::<Bn254, FS>::prove(&pk, &index, &table, &witness, &statement).unwrap();
+    let duration = start.elapsed();
+    println!("Time elapsed in proving {:?} is: {:?}", msg, duration);
+
     let res = Verifier::<Bn254, FS>::verify(&vk, &common, &statement, &proof);
     assert!(res.is_ok());
+
+}
+
+fn main() {
+    let two: usize = 2;
+    measure_cq("x", two.pow(6), two.pow(3));
+    
 }
